@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kanban Repuestos</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0a0c; font-family: system-ui, sans-serif; color: #e0e0e0; min-height: 100vh; }
+.topbar { background: #111115; border-bottom: 1px solid #1e1e28; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+.topbar-left { display: flex; align-items: center; gap: 16px; }
+.logo { font-size: 16px; font-weight: 600; color: #fff; }
+.dot-live { width: 7px; height: 7px; border-radius: 50%; background: #00ff88; display: inline-block; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.live-txt { font-size: 11px; color: #00ff88; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.last-update { font-size: 11px; color: #444; }
+.btn { padding: 6px 14px; border-radius: 8px; font-size: 12px; cursor: pointer; border: 1px solid #2e2e3a; background: #1a1a22; color: #aaa; }
+.btn:hover { background: #2e2e3a; color: #fff; }
+.tabs { display: flex; padding: 0 24px; background: #111115; border-bottom: 1px solid #1e1e28; }
+.tab { padding: 10px 18px; font-size: 13px; color: #555; cursor: pointer; border-bottom: 2px solid transparent; }
+.tab.active { color: #00ff88; border-bottom-color: #00ff88; }
+.tab:hover { color: #aaa; }
+.filters { padding: 14px 24px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-bottom: 1px solid #1a1a22; }
+.filter-label { font-size: 11px; color: #444; text-transform: uppercase; letter-spacing: 1px; }
+select { background: #141418; border: 1px solid #2e2e3a; color: #bbb; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; outline: none; }
+.search-wrap { flex: 1; max-width: 280px; position: relative; }
+.search-wrap input { width: 100%; background: #141418; border: 1px solid #2e2e3a; color: #bbb; padding: 6px 12px; border-radius: 8px; font-size: 12px; outline: none; }
+.summary { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; padding: 20px 24px; }
+.scard { border-radius: 12px; padding: 18px 20px; border: 1px solid; }
+.scard-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.scard-value { font-size: 40px; font-weight: 600; line-height: 1; margin-bottom: 4px; }
+.scard-sub { font-size: 12px; }
+.scard-ok { background: #0a1a0a; border-color: #00ff8822; }
+.scard-ok .scard-value { color: #00ff88; }
+.scard-ok .scard-label, .scard-ok .scard-sub { color: #00ff8877; }
+.scard-warn { background: #1a1400; border-color: #ffb30022; }
+.scard-warn .scard-value { color: #ffb300; }
+.scard-warn .scard-label, .scard-warn .scard-sub { color: #ffb30077; }
+.scard-crit { background: #1a0000; border-color: #ff456022; }
+.scard-crit .scard-value { color: #ff4560; }
+.scard-crit .scard-label, .scard-crit .scard-sub { color: #ff456077; }
+.content { padding: 0 24px 24px; }
+.kanban { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+.kcol { background: #111115; border-radius: 12px; padding: 14px; border: 1px solid #1e1e28; }
+.kcol-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.kcol-title { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 500; }
+.kcol-dot { width: 8px; height: 8px; border-radius: 50%; }
+.kcol-count { font-size: 11px; background: #1e1e28; border-radius: 20px; padding: 2px 8px; color: #666; }
+.rcard { background: #0d0d10; border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; border: 1px solid #1e1e28; border-left: 3px solid; }
+.rcard:hover { background: #111118; }
+.rcard-name { font-size: 13px; font-weight: 500; color: #e0e0e0; margin-bottom: 4px; line-height: 1.3; }
+.rcard-mec { font-size: 11px; color: #444; margin-bottom: 10px; }
+.rcard-stock { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.rcard-stock-label { font-size: 11px; color: #555; }
+.rcard-stock-val { font-size: 13px; font-weight: 600; }
+.bar-bg { height: 5px; background: #1e1e28; border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+.bar-fill { height: 100%; border-radius: 3px; }
+.rcard-thresholds { display: flex; gap: 10px; }
+.rcard-threshold { font-size: 10px; display: flex; align-items: center; gap: 3px; color: #444; }
+.threshold-dot { width: 6px; height: 6px; border-radius: 50%; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; }
+.badge-ok { background: #0a2a0a; color: #00ff88; border: 1px solid #00ff8833; }
+.badge-warn { background: #2a1e00; color: #ffb300; border: 1px solid #ffb30033; }
+.badge-crit { background: #2a0000; color: #ff4560; border: 1px solid #ff456033; }
+.detail-view { display: none; }
+.detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.detail-table thead th { color: #444; font-weight: 400; text-align: left; padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid #1e1e28; }
+.detail-table tbody tr { border-bottom: 1px solid #141418; }
+.detail-table tbody tr:hover { background: #141418; }
+.detail-table tbody td { padding: 10px 12px; color: #bbb; }
+.bar-wrap-td { display: flex; align-items: center; gap: 8px; }
+.bar-bg-td { flex: 1; height: 5px; background: #1e1e28; border-radius: 3px; overflow: hidden; }
+.charts-view { display: none; grid-template-columns: 1fr 1fr; gap: 16px; }
+.chart-box { background: #111115; border: 1px solid #1e1e28; border-radius: 12px; padding: 16px; }
+.chart-title { font-size: 11px; color: #444; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+.legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #666; }
+.legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+.empty-col { color: #2a2a35; font-size: 12px; text-align: center; padding: 20px 0; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo">Repuestos</div>
+    <span class="dot-live"></span><span class="live-txt">Google Sheets</span>
+  </div>
+  <div class="topbar-right">
+    <span class="last-update" id="last-update">Cargando...</span>
+    <button class="btn" onclick="loadData()">↻ Actualizar</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('kanban',this)">Kanban</div>
+  <div class="tab" onclick="switchTab('detalle',this)">Detalle</div>
+  <div class="tab" onclick="switchTab('graficos',this)">Gráficos</div>
+</div>
+
+<div class="filters">
+  <span class="filter-label">Filtrar:</span>
+  <div class="search-wrap">
+    <input type="text" id="search" placeholder="Buscar repuesto..." oninput="applyFilters()">
+  </div>
+  <select id="filter-estado" onchange="applyFilters()">
+    <option value="">Todos los estados</option>
+    <option value="critico">Crítico</option>
+    <option value="prever">Prever</option>
+    <option value="ok">OK</option>
+  </select>
+  <select id="filter-mec" onchange="applyFilters()">
+    <option value="">Todos los mecánicos</option>
+  </select>
+</div>
+
+<div class="summary">
+  <div class="scard scard-ok">
+    <div class="scard-label">OK — stock ideal</div>
+    <div class="scard-value" id="cnt-ok">—</div>
+    <div class="scard-sub">repuestos en buen estado</div>
+  </div>
+  <div class="scard scard-warn">
+    <div class="scard-label">Límite — reponer pronto</div>
+    <div class="scard-value" id="cnt-warn">—</div>
+    <div class="scard-sub">antes de llegar al crítico</div>
+  </div>
+  <div class="scard scard-crit">
+    <div class="scard-label">Crítico — comprar ya</div>
+    <div class="scard-value" id="cnt-crit">—</div>
+    <div class="scard-sub">requieren compra urgente</div>
+  </div>
+</div>
+
+<div class="content">
+  <div id="view-kanban" class="kanban">
+    <div class="kcol" style="border-top:2px solid #ff4560;">
+      <div class="kcol-header">
+        <div class="kcol-title"><span class="kcol-dot" style="background:#ff4560;"></span><span style="color:#ff4560;">Crítico — Comprar ya</span></div>
+        <span class="kcol-count" id="k-cnt-crit">0</span>
+      </div>
+      <div id="k-crit"></div>
+    </div>
+    <div class="kcol" style="border-top:2px solid #ffb300;">
+      <div class="kcol-header">
+        <div class="kcol-title"><span class="kcol-dot" style="background:#ffb300;"></span><span style="color:#ffb300;">Límite — Prever</span></div>
+        <span class="kcol-count" id="k-cnt-warn">0</span>
+      </div>
+      <div id="k-warn"></div>
+    </div>
+    <div class="kcol" style="border-top:2px solid #00ff88;">
+      <div class="kcol-header">
+        <div class="kcol-title"><span class="kcol-dot" style="background:#00ff88;"></span><span style="color:#00ff88;">OK — Estamos bien</span></div>
+        <span class="kcol-count" id="k-cnt-ok">0</span>
+      </div>
+      <div id="k-ok"></div>
+    </div>
+  </div>
+
+  <div id="view-detalle" class="detail-view">
+    <table class="detail-table">
+      <thead>
+        <tr>
+          <th>Repuesto</th><th>Mecánicos</th><th>Stock real</th><th>Nivel</th><th>Umbral amarillo</th><th>Umbral rojo</th><th>Estado</th>
+        </tr>
+      </thead>
+      <tbody id="detail-tbody"></tbody>
+    </table>
+  </div>
+
+  <div id="view-graficos" class="charts-view">
+    <div class="chart-box">
+      <div class="chart-title">Distribución de estados</div>
+      <div class="legend" id="legend-pie"></div>
+      <div style="position:relative;height:220px;">
+        <canvas id="pieChart" role="img" aria-label="Distribución estados">Cargando...</canvas>
+      </div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">Repuestos críticos — stock vs umbral</div>
+      <div style="position:relative;" id="bar-wrap">
+        <canvas id="barChart" role="img" aria-label="Repuestos críticos">Cargando...</canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSidj-fGp0T3_L6GmlFAfiOdq6QJEIUlsaJr2XOjbozUqlipYQmcy5Wemd0wwocoG8qgbucypUPTDAB/pub?gid=0&single=true&output=csv';
+let allData = [];
+let pieInst = null, barInst = null;
+
+function getEstado(row) {
+  const stock = parseInt(row['stock real']) || 0;
+  const rojo = parseInt(row['rojo']) || 0;
+  const amarillo = parseInt(row['amarillo']) || 0;
+  if (stock <= rojo) return 'critico';
+  if (stock <= amarillo) return 'prever';
+  return 'ok';
+}
+
+function getColor(e) { return e==='critico'?'#ff4560':e==='prever'?'#ffb300':'#00ff88'; }
+
+function getBadge(e) {
+  if (e==='critico') return '<span class="badge badge-crit">Crítico</span>';
+  if (e==='prever') return '<span class="badge badge-warn">Prever</span>';
+  return '<span class="badge badge-ok">OK</span>';
+}
+
+function makeCard(row) {
+  const estado = getEstado(row);
+  const color = getColor(estado);
+  const stock = parseInt(row['stock real']) || 0;
+  const verde = parseInt(row['verde']) || 1;
+  const amarillo = parseInt(row['amarillo']) || 0;
+  const rojo = parseInt(row['rojo']) || 0;
+  const pct = Math.min(100, Math.round((stock / verde) * 100));
+  const m1 = (row['mecanico 1']||'').split(' ')[0];
+  const m2 = (row['mecanico 2']||'').split(' ')[0];
+  const mecs = [m1,m2].filter(Boolean).join(' / ');
+  return `<div class="rcard" style="border-left-color:${color};">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px;">
+      <div class="rcard-name">${row['repuesto']||''}</div>${getBadge(estado)}
+    </div>
+    <div class="rcard-mec">${mecs}</div>
+    <div class="rcard-stock">
+      <span class="rcard-stock-label">Stock real</span>
+      <span class="rcard-stock-val" style="color:${color};">${stock} <span style="color:#444;font-weight:400;">/ ${verde}</span></span>
+    </div>
+    <div class="bar-bg"><div class="bar-fill" style="width:${pct}%;background:${color};"></div></div>
+    <div class="rcard-thresholds">
+      <span class="rcard-threshold"><span class="threshold-dot" style="background:#ffb300;"></span>amarillo ≤${amarillo}</span>
+      <span class="rcard-threshold"><span class="threshold-dot" style="background:#ff4560;"></span>rojo ≤${rojo}</span>
+    </div>
+  </div>`;
+}
+
+function applyFilters() {
+  const search = document.getElementById('search').value.toLowerCase();
+  const estado = document.getElementById('filter-estado').value;
+  const mec = document.getElementById('filter-mec').value;
+  const filtered = allData.filter(row => {
+    const nombre = (row['repuesto']||'').toLowerCase();
+    const est = getEstado(row);
+    const m1 = row['mecanico 1']||'';
+    const m2 = row['mecanico 2']||'';
+    if (search && !nombre.includes(search)) return false;
+    if (estado && est !== estado) return false;
+    if (mec && m1 !== mec && m2 !== mec) return false;
+    return true;
+  });
+  renderAll(filtered);
+}
+
+function renderAll(data) {
+  const crits = data.filter(r => getEstado(r)==='critico');
+  const warns = data.filter(r => getEstado(r)==='prever');
+  const oks = data.filter(r => getEstado(r)==='ok');
+
+  document.getElementById('cnt-crit').textContent = crits.length;
+  document.getElementById('cnt-warn').textContent = warns.length;
+  document.getElementById('cnt-ok').textContent = oks.length;
+  document.getElementById('k-cnt-crit').textContent = crits.length;
+  document.getElementById('k-cnt-warn').textContent = warns.length;
+  document.getElementById('k-cnt-ok').textContent = oks.length;
+  document.getElementById('k-crit').innerHTML = crits.length ? crits.map(makeCard).join('') : '<div class="empty-col">Sin repuestos críticos</div>';
+  document.getElementById('k-warn').innerHTML = warns.length ? warns.map(makeCard).join('') : '<div class="empty-col">Sin repuestos a prever</div>';
+  document.getElementById('k-ok').innerHTML = oks.length ? oks.map(makeCard).join('') : '<div class="empty-col">Sin repuestos OK</div>';
+
+  document.getElementById('detail-tbody').innerHTML = data.map(row => {
+    const estado = getEstado(row);
+    const color = getColor(estado);
+    const stock = parseInt(row['stock real'])||0;
+    const verde = parseInt(row['verde'])||1;
+    const pct = Math.min(100, Math.round((stock/verde)*100));
+    return `<tr>
+      <td style="color:#e0e0e0;font-weight:500;">${row['repuesto']||''}</td>
+      <td>${(row['mecanico 1']||'').split(' ')[0]}${row['mecanico 2']?' / '+(row['mecanico 2']||'').split(' ')[0]:''}</td>
+      <td style="color:${color};font-weight:600;">${stock}</td>
+      <td><div class="bar-wrap-td"><div class="bar-bg-td"><div class="bar-fill" style="width:${pct}%;background:${color};"></div></div><span style="font-size:11px;color:#444;">${pct}%</span></div></td>
+      <td style="color:#ffb300;">${row['amarillo']||0}</td>
+      <td style="color:#ff4560;">${row['rojo']||0}</td>
+      <td>${getBadge(estado)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('legend-pie').innerHTML = `
+    <span class="legend-item"><span class="legend-dot" style="background:#ff4560;"></span>Crítico ${crits.length}</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#ffb300;"></span>Prever ${warns.length}</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#00ff88;"></span>OK ${oks.length}</span>`;
+  if (pieInst) pieInst.destroy();
+  pieInst = new Chart(document.getElementById('pieChart'), {
+    type: 'doughnut',
+    data: { labels:['Crítico','Prever','OK'], datasets:[{ data:[crits.length,warns.length,oks.length], backgroundColor:['#ff456033','#ffb30033','#00ff8833'], borderColor:['#ff4560','#ffb300','#00ff88'], borderWidth:2 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, cutout:'60%' }
+  });
+
+  const topCrits = crits.slice(0,10);
+  document.getElementById('bar-wrap').style.height = Math.max(180, topCrits.length*40+40)+'px';
+  if (barInst) barInst.destroy();
+  barInst = new Chart(document.getElementById('barChart'), {
+    type:'bar',
+    data: {
+      labels: topCrits.map(r=>{ const n=r['repuesto']||''; return n.length>20?n.substring(0,20)+'…':n; }),
+      datasets:[
+        { label:'Stock real', data:topCrits.map(r=>parseInt(r['stock real'])||0), backgroundColor:'#ff456044', borderColor:'#ff4560', borderWidth:1.5, borderRadius:3 },
+        { label:'Umbral rojo', data:topCrits.map(r=>parseInt(r['rojo'])||0), backgroundColor:'#ffb30022', borderColor:'#ffb300', borderWidth:1, borderRadius:3 }
+      ]
+    },
+    options: { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ticks:{color:'#555',font:{size:10}},grid:{color:'#1a1a22'}}, y:{ticks:{color:'#bbb',font:{size:10}},grid:{color:'#1a1a22'}} } }
+  });
+}
+
+function switchTab(tab, el) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('view-kanban').style.display = tab==='kanban'?'grid':'none';
+  document.getElementById('view-detalle').style.display = tab==='detalle'?'block':'none';
+  document.getElementById('view-graficos').style.display = tab==='graficos'?'grid':'none';
+}
+
+function loadData() {
+  document.getElementById('last-update').textContent = 'Actualizando...';
+  Papa.parse(CSV_URL, {
+    download:true, header:true, skipEmptyLines:true,
+    complete: function(results) {
+      allData = results.data.filter(r => {
+        const key = Object.keys(r)[0];
+        const val = (r[key]||'').trim().toLowerCase();
+        return val !== '' && val !== 'repuesto';
+      });
+      const mecs = new Set();
+      allData.forEach(r=>{ if(r['mecanico 1']) mecs.add(r['mecanico 1']); if(r['mecanico 2']) mecs.add(r['mecanico 2']); });
+      const sel = document.getElementById('filter-mec');
+      sel.innerHTML = '<option value="">Todos los mecánicos</option>';
+      mecs.forEach(m=>{ const o=document.createElement('option'); o.value=m; o.textContent=m.split(' ')[0]; sel.appendChild(o); });
+      document.getElementById('last-update').textContent = 'Actualizado: '+new Date().toLocaleTimeString('es-AR');
+      applyFilters();
+    },
+    error: function(){ document.getElementById('last-update').textContent = 'Error al cargar'; }
+  });
+}
+
+loadData();
+</script>
+</body>
+</html>
